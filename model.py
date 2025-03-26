@@ -8,40 +8,54 @@ data = requests.get('https://api.weather.gov/')
 
 import requests
 
-def get_nws_data(latitude, longitude):
+def get_relevant_nws_data(latitude, longitude):
     try:
         points_url = f"https://api.weather.gov/points/{latitude},{longitude}"
-        points_response = requests.get(points_url)
-        points_response.raise_for_status()
-        points_data = points_response.json()
+        points_data = requests.get(points_url).json()
         office = points_data['properties']['gridId']
         grid_x = points_data['properties']['gridX']
         grid_y = points_data['properties']['gridY']
-        station = points_data['properties']['observationStations'][0].split('/')[-1]
-        forecast_url = f"https://api.weather.gov/gridpoints/{office}/{grid_x},{grid_y}/forecast"
-        forecast_response = requests.get(forecast_url)
-        forecast_response.raise_for_status()
-        forecast_data = forecast_response.json()
-        hourly_forecast_url = f"https://api.weather.gov/gridpoints/{office}/{grid_x},{grid_y}/forecast/hourly"
-        hourly_forecast_response = requests.get(hourly_forecast_url)
-        hourly_forecast_response.raise_for_status()
-        hourly_forecast_data = hourly_forecast_response.json()
-        alerts_url = f"https://api.weather.gov/alerts/active?point={latitude},{longitude}"
-        alerts_response = requests.get(alerts_url)
-        alerts_response.raise_for_status()
-        alerts_data = alerts_response.json()
 
+        forecast_url = f"https://api.weather.gov/gridpoints/{office}/{grid_x},{grid_y}/forecast"
+        forecast_data = requests.get(forecast_url).json()
+        relevant_forecast = [{
+            'startTime': period['startTime'],
+            'endTime': period['endTime'],
+            'temperature': period['temperature'],
+            'windSpeed': period['windSpeed'],
+            'windDirection': period['windDirection'],
+            'probabilityOfPrecipitation': period['probabilityOfPrecipitation']['value'] if period['probabilityOfPrecipitation'] else None,
+        } for period in forecast_data['properties']['periods']]
+
+        hourly_forecast_url = f"https://api.weather.gov/gridpoints/{office}/{grid_x},{grid_y}/forecast/hourly"
+        hourly_forecast_data = requests.get(hourly_forecast_url).json()
+        relevant_hourly_forecast = [{
+            'startTime': period['startTime'],
+            'temperature': period['temperature'],
+            'windSpeed': period['windSpeed'],
+            'windDirection': period['windDirection'],
+            'probabilityOfPrecipitation': period['probabilityOfPrecipitation']['value'] if period['probabilityOfPrecipitation'] else None,
+        } for period in hourly_forecast_data['properties']['periods']]
+
+        alerts_url = f"https://api.weather.gov/alerts/active?point={latitude},{longitude}"
+        alerts_data = requests.get(alerts_url).json()
+        relevant_alerts = [{
+            'event': feature['properties']['event'],
+            'severity': feature['properties']['severity'],
+            'effective': feature['properties']['effective'],
+            'expires': feature['properties']['expires'],
+            'description': feature['properties']['description'],
+        } for feature in alerts_data['features']] if alerts_data['features'] else []
 
         return {
-            'forecast': forecast_data,
-            'hourly_forecast': hourly_forecast_data,
-            'alerts': alerts_data,
+            'forecast': relevant_forecast,
+            'hourly_forecast': relevant_hourly_forecast,
+            'alerts': relevant_alerts,
         }
 
-    except requests.exceptions.RequestException as e:
-        print(f"Error retrieving NWS data: {e}")
+    except requests.exceptions.RequestException:
         return None
 
-weather_data = get_nws_data(34.0522, -118.2437) 
+weather_data = get_relevant_nws_data(34.0522, -118.2437)
 if weather_data:
-    print(weather_data['forecast'])
+    print(weather_data)
