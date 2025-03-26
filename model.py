@@ -1,12 +1,5 @@
-import tensorflow as tf
-import pickle
 import requests
-import numpy as np
-import pandas as pd
-
-data = requests.get('https://api.weather.gov/')
-
-import requests
+import openai
 
 def get_relevant_nws_data(latitude, longitude):
     try:
@@ -53,9 +46,41 @@ def get_relevant_nws_data(latitude, longitude):
             'alerts': relevant_alerts,
         }
 
-    except requests.exceptions.RequestException:
+    except requests.exceptions.RequestException as e:
+        print(f"Request failed: {e}")
         return None
 
-weather_data = get_relevant_nws_data(34.0522, -118.2437)
-if weather_data:
-    print(weather_data)
+def findLocation(state):
+    latitude_response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "user", "content": f"Find the latitude of {state}"}
+        ]
+    )
+    longitude_response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "user", "content": f"Find the longitude of {state}"}
+        ]
+    )
+    
+    latitude = latitude_response['choices'][0]['message']['content'].strip()
+    longitude = longitude_response['choices'][0]['message']['content'].strip()
+
+    return float(latitude), float(longitude)
+
+def getWeatherData(weather_data):
+    try:
+        weather_summary = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo", 
+            messages=[
+                {"role": "user", "content": f"Will there be a power outage given these conditions: {weather_data}"}
+            ],
+            max_tokens=100
+        )
+        return weather_summary['choices'][0]['message']['content'].strip()
+    except Exception as e:
+        print(f"Error getting weather data analysis: {e}")
+        return None
+
+
