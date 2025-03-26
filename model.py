@@ -1,5 +1,9 @@
 import requests
+import os
 import openai
+
+
+openai.api_key = os.getenv('OPENAI_API_KEY')
 
 def get_relevant_nws_data(latitude, longitude):
     try:
