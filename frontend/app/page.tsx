@@ -2,6 +2,8 @@
 import React, { useState } from "react";
 import axios from 'axios';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+
 export default function Home() {
   const [state, setState] = useState("");
   const [prediction, setPrediction] = useState("");
@@ -20,7 +22,7 @@ export default function Home() {
     }
 
     try {
-      const response = await axios.post("http://localhost:5000/predict", { 
+      const response = await axios.post(`${API_URL}/predict`, { 
         state: state.toUpperCase() 
       });
       
@@ -29,12 +31,10 @@ export default function Home() {
       } else {
         setError(response.data.message || "An error occurred");
       }
-    } catch (error) {
-      if (axios.isAxiosError(error) && error.response) {
-        setError(error.response.data.message || "Error occurred while fetching prediction");
-      } else {
-        setError("Error connecting to the server");
-      }
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || error.message || "Error connecting to the server";
+      setError(errorMessage);
+      console.error('API Error:', error);
     } finally {
       setLoading(false);
     }
