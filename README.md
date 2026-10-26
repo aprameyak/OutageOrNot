@@ -1,30 +1,82 @@
 # OutageOrNot
 
-![Python](https://img.shields.io/badge/Python-3776AB?logo=python&logoColor=white&style=for-the-badge)
-![Flask](https://img.shields.io/badge/Flask-000000?logo=flask&logoColor=white&style=for-the-badge)
-![Next.js](https://img.shields.io/badge/Next.js-000000?logo=next.js&logoColor=white&style=for-the-badge)
-![React](https://img.shields.io/badge/React-20232A?logo=react&logoColor=61DAFB&style=for-the-badge)
-![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white&style=for-the-badge)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-06B6D4?logo=tailwindcss&logoColor=white&style=for-the-badge)
-![OpenAI](https://img.shields.io/badge/OpenAI-412991?logo=openai&logoColor=white&style=for-the-badge)
+OutageOrNot gives a rough read on whether the weather could knock out power in a U.S. state. It pulls the current National Weather Service forecast and active alerts for the state and asks GPT-3.5 Turbo to label the outage risk as very unlikely, unlikely, likely, or very likely.
 
-## About
+It was built for the Google Solution Challenge 2025. The risk label is an LLM's judgment from a prompt, not a trained or validated prediction model.
 
-**OutageOrNot** is a full-stack application that predicts power outage risk for any U.S. state using real-time weather data and AI analysis. Built with **Python, Flask, Next.js, and OpenAI**, it pulls current conditions from the National Weather Service API — wind speed, precipitation probability, temperature, and severe weather alerts — then passes them to GPT-3.5 Turbo for a plain-language risk assessment.
+## Usage
+
+Enter a two-letter state code in the web app, or call the API directly:
+
+```bash
+curl -X POST http://localhost:5000/predict \
+  -H "Content-Type: application/json" \
+  -d '{"state": "TX"}'
+```
+
+A successful response has this shape, where `data` is the model's short text answer:
+
+```json
+{ "success": true, "data": "<risk label>" }
+```
+
+Errors return `{"error": "...", "message": "..."}` with status 400 (bad or missing state) or 500.
 
 ## Features
 
-- State-based location lookup with a coordinates map covering all U.S. states
-- Fetches live weather data from the National Weather Service API including temperature, wind, and precipitation
-- AI-powered risk assessment via OpenAI GPT-3.5 Turbo based on current weather conditions
-- Incorporates active severe weather alerts into the outage risk analysis
-- RESTful Flask backend with CORS support and structured error handling
-- Responsive Next.js frontend styled with Tailwind CSS
-- TypeScript typed throughout the frontend with Axios handling API requests
+- Accepts any of the 50 state codes and maps it to a fixed point near the state's center (`findLocation` in `model.py`).
+- Fetches the NWS 7-day forecast, hourly forecast, and active alerts for that point from `api.weather.gov`.
+- Sends temperature, wind speed and direction, precipitation probability, and alert details to `gpt-3.5-turbo` with a prompt that asks for a one-or-two-word risk label.
+- Next.js page with a state input that shows the result or the API error.
+- `/health` endpoint for uptime checks.
 
-## Technology Stack
+## Tech stack
 
-- **Frontend**: Next.js, React, TypeScript, Tailwind CSS
-- **Backend**: Python, Flask
-- **AI**: OpenAI GPT-3.5 Turbo
-- **Data Source**: National Weather Service API
+- Backend: Python, Flask, flask-cors, requests, OpenAI Python SDK
+- Frontend: Next.js 14, React 18, TypeScript, Tailwind CSS, axios
+- Data: National Weather Service API (no key required)
+
+## Getting started
+
+Prerequisites: Python 3.11, Node.js 20, and an OpenAI API key.
+
+Environment variables:
+
+- Backend (`.env` in the repo root, loaded with python-dotenv): `OPENAI_API_KEY`, optional `PORT` (default 5000) and `FLASK_DEBUG` (default `True`)
+- Frontend: optional `NEXT_PUBLIC_API_URL` (default `http://localhost:5000`)
+
+Backend:
+
+```bash
+pip install -r requirements.txt
+pip install "openai<1"
+python api.py
+```
+
+The second install is needed because `model.py` calls `openai.ChatCompletion.create`, which was removed in version 1.0 of the OpenAI SDK, while `requirements.txt` asks for `openai>=1.59.0`. With a 1.x SDK installed, `/predict` returns a 500 error.
+
+Frontend, in a second terminal:
+
+```bash
+cd frontend
+npm install
+npm run dev      # http://localhost:3000
+```
+
+There are no automated tests. CI (`.github/workflows/ci.yml`) only checks that the backend and frontend dependencies install.
+
+## How it works
+
+- `api.py`: Flask app with `GET /health` and `POST /predict`. It validates the state code, calls `getWeatherData`, and logs to `app.log`.
+- `model.py`: `findLocation` maps the state to coordinates, `get_relevant_nws_data` calls the NWS `points`, `forecast`, `forecast/hourly`, and `alerts/active` endpoints, and `getWeatherData` builds the prompt and returns the model's reply.
+- `frontend/app/page.tsx`: the single page UI. `frontend/app/api/client.ts` wraps the `/predict` and `/health` calls.
+
+Because each state is reduced to one point, the result reflects the weather at that point, not across the whole state.
+
+## Contributing
+
+Issues and pull requests are welcome. Before opening a PR, run the backend and frontend locally and check a `/predict` request end to end, and run `npm run build` in `frontend/`.
+
+## License
+
+MIT, see [LICENSE](LICENSE).
